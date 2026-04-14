@@ -9,7 +9,8 @@ APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE="docker compose"
 
 echo ">>> [1/5] Pulling latest changes from git..."
-git -C "$APP_DIR" pull origin main
+BRANCH="$(git -C "$APP_DIR" rev-parse --abbrev-ref HEAD)"
+git -C "$APP_DIR" pull origin "$BRANCH"
 
 echo ">>> [2/5] Verifying .env exists..."
 if [ ! -f "$APP_DIR/.env" ]; then
