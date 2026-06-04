@@ -6,6 +6,7 @@ endpoint solo aporta los identificadores del item.
 
 import base64
 from typing import Any
+from urllib.parse import urljoin
 
 import httpx
 from fastapi import status
@@ -17,6 +18,7 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 
 REQUEST_TIMEOUT_SECONDS = 60.0
+MAX_REDIRECTS = 5
 
 
 class KissflowService:
@@ -73,6 +75,20 @@ class KissflowService:
         )
         headers = {"Accept": "application/octet-stream", **self._auth_headers()}
         response = await client.get(url, headers=headers)
+        # Kissflow responde 302 hacia una URL firmada de almacenamiento. Se siguen
+        # los redirects manualmente conservando las credenciales solo mientras se
+        # permanezca en el host de Kissflow; nunca se reenvían a un host externo.
+        for _ in range(MAX_REDIRECTS):
+            if not response.is_redirect:
+                break
+            location = response.headers.get("location")
+            if not location:
+                break
+            redirect_url = httpx.URL(urljoin(str(response.url), location))
+            same_host = redirect_url.host == response.url.host
+            response = await client.get(
+                redirect_url, headers=headers if same_host else {}
+            )
         self._raise_for_upstream(response, "download_attachment")
         return response.content
 

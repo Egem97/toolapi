@@ -41,3 +41,8 @@ logs/
 
 # Docker
 docker-compose.override.yml
+
+# Salida de pruebas del endpoint Kissflow
+_kissflow_out/
+scripts/
+tests/
