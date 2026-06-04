@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     MS_CLIENT_SECRET: str = ""
     MS_GRAPH_SCOPE: str = "https://graph.microsoft.com/.default"
 
+    KISSFLOW_SUBDOMAIN: str = ""
+    KISSFLOW_ACCOUNT_ID: str = ""
+    KISSFLOW_ACCESS_KEY_ID: str = ""
+    KISSFLOW_ACCESS_KEY_SECRET: str = ""
+
     RATE_LIMIT_DEFAULT: str = "60/minute"
 
     @field_validator("JWT_SECRET")
