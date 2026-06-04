@@ -63,24 +63,22 @@ Si falta alguna, el endpoint responde `500 KISSFLOW_CONFIG_MISSING`.
 
 ### `200 OK`
 
+La respuesta es un **array** de adjuntos (vacío si el campo no tiene archivos
+válidos):
+
 ```json
-{
-  "count": 1,
-  "attachments": [
-    {
-      "name": "documento_prueba.pdf",
-      "base64": "JVBERi0xLjQKJ..."
-    }
-  ]
-}
+[
+  {
+    "name": "documento_prueba.pdf",
+    "base64": "JVBERi0xLjQKJ..."
+  }
+]
 ```
 
 | Campo | Tipo | Descripción |
 |---|---|---|
-| `count` | int | Cantidad de adjuntos devueltos. |
-| `attachments` | array | Lista de adjuntos. Vacía si el campo no tiene archivos válidos. |
-| `attachments[].name` | string | Nombre del archivo. |
-| `attachments[].base64` | string | Contenido del archivo en base64 (ASCII). |
+| `[].name` | string | Nombre del archivo. |
+| `[].base64` | string | Contenido del archivo en base64 (ASCII). |
 
 ---
 
@@ -136,10 +134,10 @@ resp = httpx.post(
     timeout=120,
 )
 resp.raise_for_status()
-data = resp.json()
+attachments = resp.json()  # list[{"name", "base64"}]
 
-print(f"Adjuntos: {data['count']}")
-for att in data["attachments"]:
+print(f"Adjuntos: {len(attachments)}")
+for att in attachments:
     with open(att["name"], "wb") as fh:
         fh.write(base64.b64decode(att["base64"]))
     print(f"  guardado: {att['name']}")
@@ -163,8 +161,8 @@ const resp = await fetch("http://localhost:5555/v1/kissflow/attachments", {
 });
 
 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-const data = await resp.json();
-console.log(`Adjuntos: ${data.count}`);
+const attachments = await resp.json(); // [{ name, base64 }, ...]
+console.log(`Adjuntos: ${attachments.length}`);
 ```
 
 ---

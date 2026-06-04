@@ -13,8 +13,3 @@ class KissflowAttachmentsRequest(BaseModel):
 class KissflowAttachment(BaseModel):
     name: str
     base64: str
-
-
-class KissflowAttachmentsResponse(BaseModel):
-    count: int
-    attachments: list[KissflowAttachment]
