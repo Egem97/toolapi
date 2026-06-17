@@ -10,18 +10,38 @@ from app.services.onedrive_service import OneDriveService, get_onedrive_service
 
 router = APIRouter()
 
+# Content-Type canónico que se envía a Graph por extensión.
 ALLOWED_EXTENSIONS: dict[str, str] = {
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".xls": "application/vnd.ms-excel",
     ".pdf": "application/pdf",
+    ".csv": "text/csv",
+}
+
+# Content-Types aceptados en la subida. CSV admite varios porque los clientes
+# (Excel, navegadores, curl) lo etiquetan de formas distintas.
+ACCEPTED_CONTENT_TYPES: dict[str, frozenset[str]] = {
+    ".xlsx": frozenset({"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}),
+    ".xls": frozenset({"application/vnd.ms-excel"}),
+    ".pdf": frozenset({"application/pdf"}),
+    ".csv": frozenset(
+        {
+            "text/csv",
+            "application/csv",
+            "application/vnd.ms-excel",
+            "text/plain",
+            "application/octet-stream",
+        }
+    ),
 }
 
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 CHUNK_SIZE = 1024 * 1024  # 1 MB
 
-_FILENAME_RE = re.compile(r"^[A-Za-z0-9_\- .]{1,120}\.(xlsx|xls|pdf)$", re.IGNORECASE)
+_FILENAME_RE = re.compile(r"^[A-Za-z0-9_\- .]{1,120}\.(xlsx|xls|pdf|csv)$", re.IGNORECASE)
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9!_\-]{1,200}$")
 
+# CSV no tiene firma binaria fiable, por eso queda fuera de la validación de magic bytes.
 _MAGIC_BYTES: dict[str, bytes] = {
     ".xlsx": b"PK\x03\x04",
     ".xls": b"\xD0\xCF\x11\xE0",
@@ -46,19 +66,19 @@ def _validate_file(name_file: str, content_type: str | None) -> str:
     if matched_ext is None:
         raise APIError(
             code="INVALID_FILE_EXTENSION",
-            message="Only .xlsx and .xls files are allowed",
+            message="Only .xlsx, .xls, .csv and .pdf files are allowed",
             status_code=status.HTTP_400_BAD_REQUEST,
             details={"name_file": name_file},
         )
-    expected = ALLOWED_EXTENSIONS[matched_ext]
-    if content_type != expected:
+    accepted = ACCEPTED_CONTENT_TYPES[matched_ext]
+    if content_type not in accepted:
         raise APIError(
             code="INVALID_CONTENT_TYPE",
             message="File content type does not match extension",
             status_code=status.HTTP_400_BAD_REQUEST,
-            details={"expected": expected, "received": content_type or ""},
+            details={"expected": sorted(accepted), "received": content_type or ""},
         )
-    return expected
+    return ALLOWED_EXTENSIONS[matched_ext]
 
 
 def _validate_identifier(value: str, field: str) -> None:

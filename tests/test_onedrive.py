@@ -78,6 +78,67 @@ async def test_upload_success(
 
 
 @pytest.mark.asyncio
+async def test_upload_csv_success(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    fake_result = OneDriveUploadResult(
+        id="01CSV",
+        name="ventas.csv",
+        web_url="https://sharepoint.example.com/ventas.csv",
+        size=42,
+        created_at="2026-04-13T10:30:00-05:00",
+    )
+
+    with patch(
+        "app.api.v1.endpoints.onedrive.OneDriveService.upload_excel",
+        new=AsyncMock(return_value=fake_result),
+    ):
+        response = await client.post(
+            "/v1/onedrive/upload",
+            headers=auth_headers,
+            data={
+                "drive_id": "drive-1",
+                "folder_id": "folder-1",
+                "name_file": "ventas.csv",
+            },
+            files={"file": ("ventas.csv", b"a,b,c\n1,2,3\n", "text/csv")},
+        )
+
+    assert response.status_code == 201
+    assert response.json()["name"] == "ventas.csv"
+
+
+@pytest.mark.asyncio
+async def test_upload_csv_alternate_content_type(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    fake_result = OneDriveUploadResult(
+        id="01CSV",
+        name="ventas.csv",
+        web_url="https://sharepoint.example.com/ventas.csv",
+        size=42,
+        created_at="2026-04-13T10:30:00-05:00",
+    )
+
+    with patch(
+        "app.api.v1.endpoints.onedrive.OneDriveService.upload_excel",
+        new=AsyncMock(return_value=fake_result),
+    ):
+        response = await client.post(
+            "/v1/onedrive/upload",
+            headers=auth_headers,
+            data={
+                "drive_id": "drive-1",
+                "folder_id": "folder-1",
+                "name_file": "ventas.csv",
+            },
+            files={"file": ("ventas.csv", b"a,b,c\n1,2,3\n", "application/vnd.ms-excel")},
+        )
+
+    assert response.status_code == 201
+
+
+@pytest.mark.asyncio
 async def test_upload_empty_file(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
