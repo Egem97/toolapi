@@ -1,11 +1,12 @@
 import re
+import urllib.parse
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile, status
 
 from app.core.exceptions import APIError
 from app.core.security import get_current_client
-from app.schemas.onedrive import OneDriveUploadResponse
+from app.schemas.onedrive import OneDriveDataResponse, OneDriveUploadResponse
 from app.services.onedrive_service import OneDriveService, get_onedrive_service
 
 router = APIRouter()
@@ -49,7 +50,7 @@ _MAGIC_BYTES: dict[str, bytes] = {
 }
 
 
-def _validate_file(name_file: str, content_type: str | None) -> str:
+def _validate_filename(name_file: str) -> None:
     if not _FILENAME_RE.match(name_file):
         raise APIError(
             code="INVALID_FILENAME",
@@ -57,6 +58,10 @@ def _validate_file(name_file: str, content_type: str | None) -> str:
             status_code=status.HTTP_400_BAD_REQUEST,
             details={"name_file": name_file},
         )
+
+
+def _validate_file(name_file: str, content_type: str | None) -> str:
+    _validate_filename(name_file)
     lower = name_file.lower()
     matched_ext: str | None = None
     for ext in ALLOWED_EXTENSIONS:
@@ -179,4 +184,67 @@ async def upload_excel(
         web_url=result.web_url,
         size=result.size,
         created_at=result.created_at,
+    )
+
+
+@router.post("/download")
+async def download_excel(
+    drive_id: Annotated[str, Form(min_length=1)],
+    folder_id: Annotated[str, Form(min_length=1)],
+    name_file: Annotated[str, Form(min_length=1)],
+    _: Annotated[str, Depends(get_current_client)],
+    service: Annotated[OneDriveService, Depends(get_onedrive_service)],
+) -> Response:
+    _validate_identifier(drive_id, "drive_id")
+    _validate_identifier(folder_id, "folder_id")
+    _validate_filename(name_file)
+
+    result = await service.download_file(
+        drive_id=drive_id,
+        folder_id=folder_id,
+        name_file=name_file,
+    )
+
+    # RFC 5987: nombre original como filename* para soportar caracteres no-ASCII.
+    quoted = urllib.parse.quote(result.name)
+    return Response(
+        content=result.content,
+        media_type=result.content_type,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quoted}",
+            "Content-Length": str(result.size),
+        },
+    )
+
+
+@router.post("/data", response_model=OneDriveDataResponse)
+async def download_as_json(
+    drive_id: Annotated[str, Form(min_length=1)],
+    folder_id: Annotated[str, Form(min_length=1)],
+    name_file: Annotated[str, Form(min_length=1)],
+    _: Annotated[str, Depends(get_current_client)],
+    service: Annotated[OneDriveService, Depends(get_onedrive_service)],
+) -> OneDriveDataResponse:
+    _validate_identifier(drive_id, "drive_id")
+    _validate_identifier(folder_id, "folder_id")
+    _validate_filename(name_file)
+    if _matched_ext(name_file) not in (".xlsx", ".xls"):
+        raise APIError(
+            code="INVALID_FILE_EXTENSION",
+            message="Only .xlsx and .xls files can be transformed to JSON",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            details={"name_file": name_file},
+        )
+
+    result = await service.download_as_json(
+        drive_id=drive_id,
+        folder_id=folder_id,
+        name_file=name_file,
+    )
+
+    return OneDriveDataResponse(
+        name=result.name,
+        row_count=result.row_count,
+        columns=result.columns,
+        data=result.data,
     )
